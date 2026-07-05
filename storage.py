@@ -84,3 +84,32 @@ def record_appeal(content_id, reasoning, timestamp):
             (reasoning, timestamp, content_id),
         )
         return cursor.rowcount > 0
+
+
+def get_analytics():
+    """Aggregate stats for GET /analytics: detection patterns, appeal rate, and
+    average signal disagreement."""
+    with get_conn() as conn:
+        total = conn.execute("SELECT COUNT(*) AS c FROM submissions").fetchone()["c"]
+        by_attribution = {
+            row["attribution"]: row["c"]
+            for row in conn.execute(
+                "SELECT attribution, COUNT(*) AS c FROM submissions GROUP BY attribution"
+            ).fetchall()
+        }
+        appeal_count = conn.execute(
+            "SELECT COUNT(*) AS c FROM submissions WHERE appeal_reasoning IS NOT NULL"
+        ).fetchone()["c"]
+        averages = conn.execute(
+            "SELECT AVG(confidence) AS avg_confidence, "
+            "AVG(ABS(llm_score - style_score)) AS avg_disagreement FROM submissions"
+        ).fetchone()
+
+    return {
+        "total_submissions": total,
+        "by_attribution": by_attribution,
+        "appeal_count": appeal_count,
+        "appeal_rate": (appeal_count / total) if total else 0.0,
+        "avg_confidence": averages["avg_confidence"] or 0.0,
+        "avg_signal_disagreement": averages["avg_disagreement"] or 0.0,
+    }

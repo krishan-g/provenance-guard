@@ -139,3 +139,13 @@ A submission is rate-limited, assigned a `content_id`, then scored independently
 - **second signal + confidence scoring**: Provide the [Detection Signals](#1-detection-signals) section (Signal 2) and the [Uncertainty Representation](#2-uncertainty-representation) section, plus the diagram. Ask for: the stylometric signal function (the three sub-metrics + normalization formulas above) and the confidence-scoring function implementing the exact `raw_combined` / `disagreement` / `confidence` formulas. Verify by diffing the generated constants against this document (0.6/0.4 weights, the exact dampening formula), then run the four calibration texts and confirm each confidence value lands in the threshold band predicted here, not just that the ordering looks roughly right.
 
 - **production layer**: Provide the [Transparency Label Design](#3-transparency-label-design) and [Appeals Workflow](#4-appeals-workflow) sections, plus the diagram. Ask for: a label-generation function mapping `confidence` to the exact label text above, and the `POST /appeal` endpoint. Verify by calling the label function with confidence values in all three tiers and diffing the output against this document's exact strings, and by testing that an appeal flips `status` to `under_review` and shows up correctly in `GET /log`.
+
+## Analytics Dashboard
+
+A `GET /analytics` route rendering a simple server-side HTML page (no JS framework needed), computed directly from the existing SQLite audit log — no new signals or scoring logic required. It shows:
+
+- **Detection patterns**: submission counts and percentages broken down by attribution tier (`likely_ai` / `uncertain` / `likely_human`).
+- **Appeal rate**: how many submissions have been appealed, as a count and a percentage of total submissions.
+- **Additional metric — average signal disagreement** (`AVG(ABS(llm_score - style_score))`): chosen because signal agreement/disagreement is the central mechanism behind the confidence-scoring design (see the log-odds clip discussion in the README's Confidence Scoring section) — this metric makes that mechanism visible in aggregate rather than just per-submission. Average confidence is also shown as a supporting stat.
+
+This is read-only and admin-facing, not creator-facing, so it isn't rate-limited (same reasoning as `GET /log`).

@@ -161,6 +161,23 @@ Every submission and appeal is recorded in SQLite (`storage.py`), retrievable vi
 }
 ```
 
+## Analytics Dashboard
+
+`GET /analytics` renders a simple server-side HTML dashboard, computed directly from the existing SQLite audit log. Shows: total submissions, detection patterns (counts by `likely_ai` / `uncertain` / `likely_human`), appeal rate, average confidence, and average signal disagreement (`AVG(ABS(llm_score - style_score))`). It's read-only and admin-facing rather than creator-facing, so it isn't rate-limited, matching `GET /log`.
+
+Example output after 3 submissions and 1 appeal:
+```
+Total submissions: 3
+Appeals filed: 1 (33.3%)
+Average confidence: 0.529
+Average signal disagreement: 0.341
+
+Detection patterns:
+  likely_ai: 1
+  uncertain: 1
+  likely_human: 1
+```
+
 ## Known Limitations
 
 **AI-generated text written in a casual, first-person voice evades detection.** The 100-example evaluation confirmed this at scale. 32% of AI texts were missed overall, but that miss rate was almost entirely concentrated in two genres: blog posts (9/10 missed) and personal-narrative story openings (7/10 missed), while poems, formal essays, and informational writing had **zero** misses across 30 examples combined. Every single miss in the entire test started with "I." This lands directly on the platform's actual target content, so it's a real, quantified gap, not an edge case in the abstract sense.

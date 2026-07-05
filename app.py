@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, render_template_string, request
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
@@ -11,7 +11,14 @@ load_dotenv()
 from labels import get_label
 from scoring import classify, compute_confidence
 from signals import get_llm_score, get_style_score
-from storage import get_recent_entries, get_submission, init_db, insert_submission, record_appeal
+from storage import (
+    get_analytics,
+    get_recent_entries,
+    get_submission,
+    init_db,
+    insert_submission,
+    record_appeal,
+)
 
 app = Flask(__name__)
 init_db()
@@ -112,6 +119,41 @@ def appeal():
 def get_log():
     """Returns the audit log's most recent entries as JSON."""
     return jsonify({"entries": get_recent_entries()})
+
+
+ANALYTICS_TEMPLATE = """
+<!doctype html>
+<title>Provenance Guard — Analytics</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 640px; margin: 3rem auto; color: #222; }
+  h1 { font-size: 1.4rem; }
+  .stat { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #eee; }
+  .stat span:last-child { font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+  td { padding: 0.4rem 0; border-bottom: 1px solid #eee; }
+  td:last-child { text-align: right; font-weight: 600; }
+</style>
+<h1>Provenance Guard — Analytics</h1>
+
+<div class="stat"><span>Total submissions</span><span>{{ a.total_submissions }}</span></div>
+<div class="stat"><span>Appeals filed</span><span>{{ a.appeal_count }} ({{ "%.1f"|format(a.appeal_rate * 100) }}%)</span></div>
+<div class="stat"><span>Average confidence</span><span>{{ "%.3f"|format(a.avg_confidence) }}</span></div>
+<div class="stat"><span>Average signal disagreement</span><span>{{ "%.3f"|format(a.avg_signal_disagreement) }}</span></div>
+
+<h2>Detection patterns</h2>
+<table>
+  {% for tier in ["likely_ai", "uncertain", "likely_human"] %}
+  <tr><td>{{ tier }}</td><td>{{ a.by_attribution.get(tier, 0) }}</td></tr>
+  {% endfor %}
+</table>
+"""
+
+
+@app.route("/analytics", methods=["GET"])
+def analytics():
+    """Simple server-rendered dashboard: detection patterns, appeal rate, and
+    average signal disagreement (see planning.md's Stretch Feature section)."""
+    return render_template_string(ANALYTICS_TEMPLATE, a=get_analytics())
 
 
 if __name__ == "__main__":
