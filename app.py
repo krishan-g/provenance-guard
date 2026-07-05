@@ -3,26 +3,38 @@ from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 load_dotenv()
 
+from labels import get_label
 from scoring import classify, compute_confidence
 from signals import get_llm_score, get_style_score
-from storage import get_recent_entries, init_db, insert_submission
+from storage import get_recent_entries, get_submission, init_db, insert_submission, record_appeal
 
 app = Flask(__name__)
 init_db()
 
+# See README's Rate Limiting section for the full reasoning. Short version:
+# 6/minute bounds realistic single-session iteration (submit, read, revise,
+# resubmit); 40/day bounds how much of the shared Groq free-tier daily token
+# quota one user can consume.
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=[],
+    storage_uri="memory://",
+)
+
 
 @app.route("/submit", methods=["POST"])
+@limiter.limit("6 per minute;40 per day")
 def submit():
     """Runs both detection signals, combines them into a confidence score, and logs the result.
 
-    Label text (the exact three variants from planning.md section 3) isn't
-    implemented yet, so `label` below is still a placeholder even though
-    `confidence`/`attribution` are now real. No error handling around
-    get_llm_score yet — a Groq outage or rate limit currently surfaces as a
-    raw 500 (server error).
+    No error handling around get_llm_score yet; a Groq outage or rate limit
+    currently surfaces as a raw 500 (server error).
     """
     data = request.get_json(silent=True) or {}
     text = data.get("text")
@@ -41,7 +53,7 @@ def submit():
 
     confidence = compute_confidence(llm_score, style_score)
     attribution = classify(confidence)
-    label = "Placeholder label — exact label text not yet implemented."
+    label = get_label(attribution)
 
     insert_submission(
         {
@@ -64,6 +76,34 @@ def submit():
             "attribution": attribution,
             "confidence": confidence,
             "label": label,
+        }
+    )
+
+
+@app.route("/appeal", methods=["POST"])
+def appeal():
+    """Records a creator's appeal against an existing classification.
+
+    Sets status to under_review and logs the reasoning alongside the
+    original decision; does not trigger re-classification.
+    """
+    data = request.get_json(silent=True) or {}
+    content_id = data.get("content_id")
+    creator_reasoning = data.get("creator_reasoning")
+    if not content_id or not creator_reasoning:
+        return jsonify({"error": "content_id and creator_reasoning are required"}), 400
+
+    if get_submission(content_id) is None:
+        return jsonify({"error": "content_id not found"}), 404
+
+    timestamp = datetime.now(timezone.utc).isoformat()
+    record_appeal(content_id, creator_reasoning, timestamp)
+
+    return jsonify(
+        {
+            "content_id": content_id,
+            "status": "under_review",
+            "message": "Appeal received and logged for review.",
         }
     )
 
