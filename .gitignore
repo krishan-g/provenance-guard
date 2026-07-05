@@ -16,6 +16,9 @@ venv/
 # Logs
 *.log
 
+# SQLite audit log (regenerated at runtime)
+*.db
+
 # macOS
 .DS_Store
 
