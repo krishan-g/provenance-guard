@@ -2,6 +2,8 @@
 
 An AI content provenance backend built with Flask, featuring multi-signal detection (LLM + stylometrics), calibrated confidence scoring, transparency labeling, and an appeals workflow.
 
+**Demo**: https://www.loom.com/share/856bebba84cb445db263f78e0e5065ef
+
 Full design rationale lives in [`planning.md`](planning.md); this README covers the implementation, the evidence behind the design decisions, and what was learned building it.
 
 ## Setup
