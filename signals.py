@@ -81,7 +81,7 @@ def get_style_score(text):
     sentence_lengths = [len(_words(s)) for s in sentences]
     if len(sentence_lengths) >= 2:
         mean_len = sum(sentence_lengths) / len(sentence_lengths)
-        variance = sum((l - mean_len) ** 2 for l in sentence_lengths) / len(sentence_lengths)
+        variance = sum((length - mean_len) ** 2 for length in sentence_lengths) / len(sentence_lengths)
     else:
         variance = 0.0
 
