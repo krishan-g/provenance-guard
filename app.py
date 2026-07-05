@@ -6,7 +6,8 @@ from flask import Flask, jsonify, request
 
 load_dotenv()
 
-from signals import get_llm_score
+from scoring import classify, compute_confidence
+from signals import get_llm_score, get_style_score
 from storage import get_recent_entries, init_db, insert_submission
 
 app = Flask(__name__)
@@ -15,12 +16,13 @@ init_db()
 
 @app.route("/submit", methods=["POST"])
 def submit():
-    """Runs Groq LLM classification on submitted text and logs the result.
+    """Runs both detection signals, combines them into a confidence score, and logs the result.
 
-    Stylometric signal and the real agreement-gated confidence formula from 
-    planning.md need to be implemented; confidence/attribution/label below are placeholders
-    until then. No error handling around get_llm_score yet — a Groq outage or rate limit 
-    currently surfaces as a raw 500 (server error).
+    Label text (the exact three variants from planning.md section 3) isn't
+    implemented yet, so `label` below is still a placeholder even though
+    `confidence`/`attribution` are now real. No error handling around
+    get_llm_score yet — a Groq outage or rate limit currently surfaces as a
+    raw 500 (server error).
     """
     data = request.get_json(silent=True) or {}
     text = data.get("text")
@@ -34,9 +36,12 @@ def submit():
     llm_result = get_llm_score(text)
     llm_score = llm_result["ai_score"]
 
-    confidence = llm_score
-    attribution = "likely_ai" if confidence >= 0.5 else "likely_human"
-    label = "Placeholder label — confidence scoring not yet implemented (Milestone 4)."
+    style_result = get_style_score(text)
+    style_score = style_result["style_score"]
+
+    confidence = compute_confidence(llm_score, style_score)
+    attribution = classify(confidence)
+    label = "Placeholder label — exact label text not yet implemented."
 
     insert_submission(
         {
@@ -45,7 +50,7 @@ def submit():
             "text": text,
             "timestamp": timestamp,
             "llm_score": llm_score,
-            "style_score": None,
+            "style_score": style_score,
             "confidence": confidence,
             "attribution": attribution,
             "label": label,

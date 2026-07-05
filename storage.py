@@ -31,7 +31,7 @@ def init_db():
                 attribution TEXT,
                 label TEXT,
                 status TEXT NOT NULL,
-                -- populated once a creator appeals (Milestone 5)
+                -- populated once a creator appeals
                 appeal_reasoning TEXT,
                 appeal_timestamp TEXT
             )
